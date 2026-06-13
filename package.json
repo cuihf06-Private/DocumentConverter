@@ -7,11 +7,12 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "compression": "^1.8.1",
     "express": "^5.2.1",
-    "multer": "^2.1.1",
+    "html-docx-js": "^0.3.1",
     "marked": "^18.0.5",
-    "puppeteer": "^25.1.0",
+    "multer": "^2.1.1",
     "pdfkit": "^0.19.1",
-    "html-docx-js": "^0.3.1"
+    "puppeteer": "^25.1.0"
   }
 }

@@ -67,33 +67,84 @@
     font-size: 12px;
     margin-top: 8px;
   }
-  .file-info {
+  .file-list {
     display: none;
-    background: #edf2f7;
-    padding: 14px 18px;
-    border-radius: 8px;
     margin-top: 16px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .file-list.show { display: block; }
+  .file-list-header {
+    display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 8px;
   }
-  .file-info.show { display: flex; }
-  .file-name {
-    font-size: 14px;
-    color: #2d3748;
-    font-weight: 500;
-    word-break: break-all;
-    margin-right: 12px;
+  .file-list-title {
+    font-size: 13px;
+    color: #4a5568;
+    font-weight: 600;
   }
-  .file-remove {
+  .file-list-clear {
     background: #fed7d7;
     color: #c53030;
     border: none;
-    padding: 6px 12px;
+    padding: 4px 10px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 12px;
-    flex-shrink: 0;
   }
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #edf2f7;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+  }
+  .file-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .file-type-badge {
+    background: #667eea;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  .file-type-badge.img { background: #38b2ac; }
+  .file-item-name {
+    font-size: 13px;
+    color: #2d3748;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-item-size {
+    font-size: 11px;
+    color: #a0aec0;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+  .file-item-remove {
+    background: none;
+    border: none;
+    color: #e53e3e;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .file-item-remove:hover { color: #c53030; }
   .filename-input {
     width: 100%;
     padding: 10px 14px;
@@ -228,7 +279,7 @@
     padding-top: 24px;
     border-top: 1px solid #e2e8f0;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
     text-align: center;
   }
@@ -242,19 +293,22 @@
 <body>
   <div class="container">
     <h1>DocumentConverter</h1>
-    <p class="subtitle">将 Markdown 文件转换为 Word 和 PDF 格式</p>
+    <p class="subtitle">将 Markdown 文件转换为 Word 和 PDF 格式，支持图片嵌入</p>
 
     <form id="convertForm">
       <div class="upload-area" id="uploadArea">
         <div class="upload-icon">📄</div>
-        <div class="upload-text">点击选择或拖拽 Markdown 文件到此处</div>
-        <div class="upload-hint">支持 .md / .markdown 格式，最大 20MB</div>
-        <input type="file" id="fileInput" accept=".md,.markdown,text/markdown" style="display:none">
+        <div class="upload-text">点击选择或拖拽 Markdown 文件和相关图片到此处</div>
+        <div class="upload-hint">支持 .md / .markdown + 图片（.png .jpg .gif .svg .webp .bmp），单文件最大 20MB</div>
+        <input type="file" id="fileInput" multiple accept=".md,.markdown,.png,.jpg,.jpeg,.gif,.svg,.webp,.bmp,text/markdown" style="display:none">
       </div>
 
-      <div class="file-info" id="fileInfo">
-        <span class="file-name" id="fileName"></span>
-        <button type="button" class="file-remove" id="fileRemove">移除</button>
+      <div class="file-list" id="fileList">
+        <div class="file-list-header">
+          <span class="file-list-title" id="fileListTitle">已选择文件</span>
+          <button type="button" class="file-list-clear" id="fileListClear">全部清除</button>
+        </div>
+        <div id="fileListItems"></div>
       </div>
 
       <label class="filename-label">输出文件名（不含扩展名，可选）</label>
@@ -288,15 +342,20 @@
         <div class="feature-icon">🚀</div>
         <div class="feature-text">一键双格式</div>
       </div>
+      <div class="feature">
+        <div class="feature-icon">🖼️</div>
+        <div class="feature-text">图片嵌入</div>
+      </div>
     </div>
   </div>
 
 <script>
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
-const fileInfo = document.getElementById('fileInfo');
-const fileNameEl = document.getElementById('fileName');
-const fileRemove = document.getElementById('fileRemove');
+const fileList = document.getElementById('fileList');
+const fileListItems = document.getElementById('fileListItems');
+const fileListTitle = document.getElementById('fileListTitle');
+const fileListClear = document.getElementById('fileListClear');
 const filenameInput = document.getElementById('filenameInput');
 const convertForm = document.getElementById('convertForm');
 const submitBtn = document.getElementById('submitBtn');
@@ -306,7 +365,12 @@ const errorBox = document.getElementById('error');
 const result = document.getElementById('result');
 const downloadList = document.getElementById('downloadList');
 
-let selectedFile = null;
+const MD_EXT = ['.md', '.markdown'];
+const IMG_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp'];
+const ALLOWED_EXT = [...MD_EXT, ...IMG_EXT];
+
+// 已选择文件列表，每项包含 { file, relativePath }
+let selectedFiles = [];
 
 uploadArea.addEventListener('click', () => fileInput.click());
 uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
@@ -314,42 +378,162 @@ uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag
 uploadArea.addEventListener('drop', e => {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
-    if (e.dataTransfer.files.length) {
-        handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.items) {
+        // 使用 DataTransferItemList 获取相对路径（拖拽文件夹时）
+        handleDataTransfer(e.dataTransfer);
+    } else if (e.dataTransfer.files.length) {
+        handleFiles(Array.from(e.dataTransfer.files));
     }
 });
 fileInput.addEventListener('change', e => {
-    if (e.target.files.length) handleFile(e.target.files[0]);
+    if (e.target.files.length) {
+        handleFiles(Array.from(e.target.files));
+    }
 });
-fileRemove.addEventListener('click', () => {
-    selectedFile = null;
+fileListClear.addEventListener('click', () => {
+    selectedFiles = [];
     fileInput.value = '';
-    fileInfo.classList.remove('show');
+    renderFileList();
     uploadArea.classList.remove('has-file');
-    uploadArea.style.display = '';
     result.classList.remove('show');
     errorBox.classList.remove('show');
 });
 
-function handleFile(file) {
-    const name = file.name.toLowerCase();
-    if (!name.endsWith('.md') && !name.endsWith('.markdown')) {
-        showError('仅支持 .md 或 .markdown 文件');
-        return;
+async function handleDataTransfer(dataTransfer) {
+    const items = Array.from(dataTransfer.items);
+    const entries = [];
+
+    // 尝试获取 FileSystemEntry（支持目录结构）
+    for (const item of items) {
+        if (item.webkitGetAsEntry) {
+            const entry = item.webkitGetAsEntry();
+            if (entry) entries.push(entry);
+        }
     }
-    if (file.size > 20 * 1024 * 1024) {
-        showError('文件大小不能超过 20MB');
-        return;
+
+    if (entries.length > 0) {
+        const files = [];
+        for (const entry of entries) {
+            const resolved = await readEntry(entry, '');
+            files.push(...resolved);
+        }
+        processSelectedFiles(files);
+    } else {
+        // 回退到普通 FileList
+        handleFiles(Array.from(dataTransfer.files));
     }
-    selectedFile = file;
-    fileNameEl.textContent = `${file.name} (${formatSize(file.size)})`;
-    fileInfo.classList.add('show');
-    uploadArea.classList.add('has-file');
+}
+
+// 递归读取 FileSystemEntry
+function readEntry(entry, basePath) {
+    return new Promise((resolve) => {
+        if (entry.isFile) {
+            entry.file(file => {
+                const relativePath = basePath + file.name;
+                resolve([{ file, relativePath }]);
+            }, () => resolve([]));
+        } else if (entry.isDirectory) {
+            const dirReader = entry.createReader();
+            const dirPath = basePath + entry.name + '/';
+            dirReader.readEntries(async (entries) => {
+                let allFiles = [];
+                for (const sub of entries) {
+                    const subFiles = await readEntry(sub, dirPath);
+                    allFiles.push(...subFiles);
+                }
+                resolve(allFiles);
+            }, () => resolve([]));
+        } else {
+            resolve([]);
+        }
+    });
+}
+
+function handleFiles(files) {
+    // 没有目录结构时，用文件名作为相对路径
+    const items = files.map(f => ({ file: f, relativePath: f.name }));
+    processSelectedFiles(items);
+}
+
+function processSelectedFiles(items) {
+    for (const item of items) {
+        const name = item.file.name.toLowerCase();
+        const ext = getExt(name);
+        if (!ALLOWED_EXT.includes(ext)) continue;
+        if (item.file.size > 20 * 1024 * 1024) {
+            showError(`文件 ${item.file.name} 超过 20MB 限制`);
+            return;
+        }
+        // 避免重复添加同名文件
+        const exists = selectedFiles.find(f => f.relativePath === item.relativePath);
+        if (!exists) {
+            selectedFiles.push(item);
+        }
+    }
+
+    renderFileList();
+
+    // 自动填充输出文件名（取第一个 md 文件的名称）
     if (!filenameInput.value) {
-        filenameInput.value = file.name.replace(/\.(md|markdown)$/i, '');
+        const mdItem = selectedFiles.find(f => MD_EXT.includes(getExt(f.file.name.toLowerCase())));
+        if (mdItem) {
+            filenameInput.value = mdItem.file.name.replace(/\.(md|markdown)$/i, '');
+        }
     }
+
     errorBox.classList.remove('show');
     result.classList.remove('show');
+}
+
+function getExt(name) {
+    const dot = name.lastIndexOf('.');
+    return dot >= 0 ? name.substring(dot) : '';
+}
+
+function renderFileList() {
+    fileListItems.innerHTML = '';
+    if (selectedFiles.length === 0) {
+        fileList.classList.remove('show');
+        uploadArea.classList.remove('has-file');
+        return;
+    }
+
+    fileList.classList.add('show');
+    uploadArea.classList.add('has-file');
+
+    const mdCount = selectedFiles.filter(f => MD_EXT.includes(getExt(f.file.name.toLowerCase()))).length;
+    const imgCount = selectedFiles.filter(f => IMG_EXT.includes(getExt(f.file.name.toLowerCase()))).length;
+    fileListTitle.textContent = `已选择 ${mdCount} 个 Markdown + ${imgCount} 张图片`;
+
+    // Markdown 文件排在前面
+    const sorted = [...selectedFiles].sort((a, b) => {
+        const aIsMd = MD_EXT.includes(getExt(a.file.name.toLowerCase())) ? 0 : 1;
+        const bIsMd = MD_EXT.includes(getExt(b.file.name.toLowerCase())) ? 0 : 1;
+        return aIsMd - bIsMd;
+    });
+
+    sorted.forEach((item, idx) => {
+        const ext = getExt(item.file.name.toLowerCase());
+        const isMd = MD_EXT.includes(ext);
+        const badge = isMd ? 'MD' : 'IMG';
+        const badgeClass = isMd ? '' : 'img';
+
+        const el = document.createElement('div');
+        el.className = 'file-item';
+        el.innerHTML = `
+            <div class="file-item-info">
+                <span class="file-type-badge ${badgeClass}">${badge}</span>
+                <span class="file-item-name" title="${item.relativePath}">${item.relativePath}</span>
+                <span class="file-item-size">${formatSize(item.file.size)}</span>
+            </div>
+            <button type="button" class="file-item-remove" title="移除">&times;</button>
+        `;
+        el.querySelector('.file-item-remove').addEventListener('click', () => {
+            selectedFiles = selectedFiles.filter(f => f !== item);
+            renderFileList();
+        });
+        fileListItems.appendChild(el);
+    });
 }
 
 function formatSize(bytes) {
@@ -366,21 +550,38 @@ function showError(msg) {
 
 convertForm.addEventListener('submit', async e => {
     e.preventDefault();
-    if (!selectedFile) {
-        showError('请先选择 Markdown 文件');
+    const mdFiles = selectedFiles.filter(f => MD_EXT.includes(getExt(f.file.name.toLowerCase())));
+    if (mdFiles.length === 0) {
+        showError('请至少选择一个 Markdown 文件');
         return;
     }
+
     errorBox.classList.remove('show');
     result.classList.remove('show');
     progress.classList.add('show');
     submitBtn.disabled = true;
-    progressText.textContent = '正在上传并转换中...';
+    const imgCount = selectedFiles.length - mdFiles.length;
+    progressText.textContent = imgCount > 0
+        ? `正在上传 ${mdFiles.length} 个文档 + ${imgCount} 张图片并转换中...`
+        : '正在上传并转换中...';
 
     const formData = new FormData();
-    formData.append('file', selectedFile);
+
+    // 先附加 relativePaths（确保在文件之前发送，以便 multer 的 filename 回调可以读取）
+    const pathMap = {};
+    selectedFiles.forEach(item => {
+        pathMap[item.file.name] = item.relativePath;
+    });
+    formData.append('relativePaths', JSON.stringify(pathMap));
+
     if (filenameInput.value.trim()) {
         formData.append('filename', filenameInput.value.trim());
     }
+
+    // 附加所有文件
+    selectedFiles.forEach(item => {
+        formData.append('files', item.file);
+    });
 
     try {
         const res = await fetch('/api/convert', { method: 'POST', body: formData });
@@ -414,8 +615,10 @@ convertForm.addEventListener('submit', async e => {
     }
 });
 
-// 健康检查
-fetch('/api/health').then(r => r.json()).then(d => console.log('服务正常', d)).catch(() => {});
+// 健康检查（延迟执行，不阻塞页面渲染）
+setTimeout(() => {
+    fetch('/api/health', { cache: 'no-store' }).then(r => r.json()).then(d => console.log('服务正常', d)).catch(() => {});
+}, 100);
 </script>
 </body>
 </html>

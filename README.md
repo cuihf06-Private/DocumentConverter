@@ -26,6 +26,8 @@
 ## 功能特性
 
 - **一键双格式输出**：上传一次 Markdown 文件，同时生成 DOCX 和 PDF 两种格式
+- **图片支持**：可同时上传 Markdown 引用的图片文件（.png .jpg .gif .svg .webp .bmp），转换时自动嵌入到 PDF 和 DOCX 中
+- **拖拽文件夹上传**：支持拖拽包含图片的整个文件夹，保持相对目录结构
 - **完整的 Markdown 支持**：基于 GFM（GitHub Flavored Markdown）扩展，包括：
   - 表格、围栏代码块、脚注
   - 任务列表（`- [x]`）
@@ -272,10 +274,13 @@ http://localhost:3003
 
 操作步骤：
 
-1. 点击上传区域或拖拽 `.md` / `.markdown` 文件
-2. （可选）修改输出文件名
-3. 点击 **"转换为 Word & PDF"** 按钮
-4. 等待转换完成，下载 DOCX 和 PDF 文件
+1. 点击上传区域或拖拽 `.md` / `.markdown` 文件及相关图片
+2. 文件列表显示已选择的 Markdown 和图片文件（支持移除单个文件）
+3. （可选）修改输出文件名
+4. 点击 **“转换为 Word & PDF”** 按钮
+5. 等待转换完成，下载 DOCX 和 PDF 文件
+
+> 图片引用格式示例：`![图片说明](./image.png)` 或 `![图片说明](image.png)`，转换时按 Markdown 文件所在目录为基准解析相对路径。
 
 ### API 接口
 
@@ -305,14 +310,23 @@ Content-Type: multipart/form-data
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `file` | File | 是 | Markdown 文件（.md / .markdown），最大 20MB |
+| `files` | File[] | 是 | Markdown 文件 + 可选图片（支持 .md .markdown .png .jpg .jpeg .gif .svg .webp .bmp），单文件最大 20MB |
 | `filename` | String | 否 | 输出文件基础名（不含扩展名），留空使用原文件名 |
+| `relativePaths` | String | 否 | JSON 字符串，文件名到相对路径的映射，用于保持目录结构 |
 
 **cURL 示例：**
 
 ```bash
+# 仅上传 Markdown
 curl -X POST http://localhost:3003/api/convert \
-  -F "file=@document.md" \
+  -F "files=@document.md" \
+  -F "filename=my-output"
+
+# 上传 Markdown + 图片
+curl -X POST http://localhost:3003/api/convert \
+  -F "relativePaths={\"document.md\":\"document.md\",\"image.png\":\"image.png\"}" \
+  -F "files=@document.md" \
+  -F "files=@image.png" \
   -F "filename=my-output"
 ```
 

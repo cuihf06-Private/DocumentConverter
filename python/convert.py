@@ -48,27 +48,28 @@ def md_to_html(md_text: str) -> str:
 
 def build_html_doc(body_html: str, title: str, css_text: str, fonts_dir: Path) -> str:
     """构造完整 HTML 文档（含 @font-face 嵌入本地中文字体 + 排版 CSS）"""
-    # 字体相对路径：相对于 fonts_dir 的 base_url
+    # 使用绝对 file:// URI 嵌入字体，这样无论 base_url 是什么都能正确加载
     reg = fonts_dir / 'notosans-sc.ttf'
     bold = fonts_dir / 'notosans-sc-bold.otf'
 
     font_face = ""
     if reg.exists():
+        reg_uri = reg.resolve().as_uri()
         font_face += f"""
 @font-face {{
     font-family: 'Noto Sans SC';
     font-weight: 400;
     font-style: normal;
-    /* 不指定 format() 让 WeasyPrint 自动嗅探：notosans-sc.ttf 实际是 OTTO（CFF） */
-    src: url('notosans-sc.ttf');
+    src: url('{reg_uri}');
 }}"""
     if bold.exists():
+        bold_uri = bold.resolve().as_uri()
         font_face += f"""
 @font-face {{
     font-family: 'Noto Sans SC';
     font-weight: 700;
     font-style: normal;
-    src: url('notosans-sc-bold.otf');
+    src: url('{bold_uri}');
 }}"""
 
     title_escaped = title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -97,7 +98,7 @@ def generate_pdf(html_str: str, out_path: Path, base_url: Path) -> None:
     html_obj.write_pdf(target=str(out_path))
 
 
-def generate_docx(md_path: Path, out_path: Path) -> bool:
+def generate_docx(md_path: Path, out_path: Path, base_dir: Path | None = None) -> bool:
     """用 Pandoc 将 Markdown 转换为 DOCX。若 pandoc 不可用则返回 False。"""
     pandoc = _which('pandoc')
     if not pandoc:
@@ -115,6 +116,9 @@ def generate_docx(md_path: Path, out_path: Path) -> bool:
         # 让 Pandoc 识别中文，需要 wrap 选项；preset 让标题样式更接近 Word 默认
         '--wrap', 'preserve',
     ]
+    # 指定资源路径，使 Pandoc 在工作目录中查找图片并嵌入 DOCX
+    if base_dir:
+        cmd.extend(['--resource-path', str(base_dir)])
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=120)
         return True
@@ -139,6 +143,7 @@ def main() -> int:
     parser.add_argument('--outdir', required=True, help='输出目录')
     parser.add_argument('--project-root', required=True, help='项目根目录（用于定位 fonts/）')
     parser.add_argument('--css', default=None, help='自定义 CSS 文件路径（可选）')
+    parser.add_argument('--base-dir', default=None, help='工作目录（用于解析图片等相对路径资源）')
     args = parser.parse_args()
 
     md_path = Path(args.input)
@@ -148,6 +153,7 @@ def main() -> int:
     project_root = Path(args.project_root)
     fonts_dir = project_root / 'fonts'
     css_path = Path(args.css) if args.css else (Path(__file__).parent / 'template.css')
+    base_dir = Path(args.base_dir) if args.base_dir else md_path.parent
 
     if not md_path.exists():
         log(f"输入文件不存在: {md_path}")
@@ -164,7 +170,7 @@ def main() -> int:
     pdf_path = out_dir / f"{base}-{timestamp}.pdf"
 
     # DOCX（Pandoc）
-    docx_ok = generate_docx(md_path, docx_path)
+    docx_ok = generate_docx(md_path, docx_path, base_dir=base_dir)
 
     # PDF（WeasyPrint）
     pdf_ok = False
@@ -172,7 +178,8 @@ def main() -> int:
         html_body = md_to_html(md_text)
         css_text = css_path.read_text(encoding='utf-8') if css_path.exists() else ""
         full_html = build_html_doc(html_body, base, css_text, fonts_dir)
-        generate_pdf(full_html, pdf_path, base_url=fonts_dir)
+        # 以 base_dir 作为 base_url，使图片相对路径能正确解析
+        generate_pdf(full_html, pdf_path, base_url=base_dir)
         pdf_ok = True
     except Exception as e:
         log(f"PDF 生成失败: {type(e).__name__}: {e}")
