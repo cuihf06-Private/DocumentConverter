@@ -94,7 +94,8 @@
 DocumentConverter/
 ├── server.js              # Node.js 主服务（Express）
 ├── package.json           # Node.js 依赖配置
-├── start.sh               # 启动脚本（自动加载 nvm）
+├── deploy.sh              # 部署脚本（推荐：自动管理进程）
+├── start.sh               # 启动脚本（简单启动）
 ├── _check_tools.sh        # 环境检查脚本
 ├── python/
 │   ├── convert.py         # 核心转换逻辑（Python）
@@ -106,6 +107,7 @@ DocumentConverter/
 │   └── index.html         # Web 前端界面
 ├── uploads/               # 临时上传目录（自动创建）
 ├── outputs/               # 转换输出目录（自动创建）
+├── .runtime/              # 运行时目录（deploy.sh 使用，含 PID/日志）
 └── test/
     ├── test.md            # 基础测试用例
     ├── complex.md         # 复杂语法测试
@@ -230,7 +232,39 @@ bash _check_tools.sh
 
 ## 启动服务
 
-### 方式一：使用启动脚本（推荐）
+### 方式一：使用部署脚本（推荐）
+
+```bash
+./deploy.sh
+```
+
+部署脚本会自动完成以下操作：
+- 加载 nvm 环境
+- 安装 Node.js 依赖（`npm install`）
+- 确保 `uploads/`、`outputs/` 目录存在
+- 后台启动服务
+- HTTP 健康检查（`/api/health`）
+
+**常用命令：**
+
+```bash
+# 部署（自动停止旧进程 + 安装依赖 + 启动服务）
+./deploy.sh
+
+# 查看服务状态
+./deploy.sh --status
+
+# 停止服务
+./deploy.sh --stop
+
+# 查看帮助
+./deploy.sh --help
+```
+
+**日志位置：** `.runtime/backend.log`  
+**PID 文件：** `.runtime/backend.pid`
+
+### 方式二：使用启动脚本
 
 ```bash
 bash start.sh
@@ -238,7 +272,7 @@ bash start.sh
 
 启动脚本会自动检测 `node` 是否在 PATH 中，若不在则自动加载 `nvm`。日志同时输出到终端和 `server.log` 文件。
 
-### 方式二：直接启动
+### 方式三：直接启动
 
 ```bash
 node server.js
@@ -247,18 +281,14 @@ node server.js
 ### 自定义端口
 
 ```bash
-PORT=8080 node server.js
+PORT=8080 ./deploy.sh
 # 或
 PORT=8080 bash start.sh
+# 或
+PORT=8080 node server.js
 ```
 
 默认端口为 **3003**。
-
-### 后台运行
-
-```bash
-nohup bash start.sh &
-```
 
 ---
 
