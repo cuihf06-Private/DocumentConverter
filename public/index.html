@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocumentConverter - Markdown 转 Word / PDF</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #2d3748;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .container {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    padding: 40px;
+    max-width: 720px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: #1a202c;
+    text-align: center;
+  }
+  .subtitle {
+    text-align: center;
+    color: #718096;
+    margin-bottom: 32px;
+    font-size: 14px;
+  }
+  .upload-area {
+    border: 2px dashed #cbd5e0;
+    border-radius: 12px;
+    padding: 50px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f7fafc;
+  }
+  .upload-area:hover, .upload-area.dragover {
+    border-color: #667eea;
+    background: #edf2f7;
+  }
+  .upload-area.has-file {
+    border-color: #48bb78;
+    background: #f0fff4;
+  }
+  .upload-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    color: #667eea;
+  }
+  .upload-text {
+    color: #4a5568;
+    font-size: 15px;
+  }
+  .upload-hint {
+    color: #a0aec0;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .file-info {
+    display: none;
+    background: #edf2f7;
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-top: 16px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .file-info.show { display: flex; }
+  .file-name {
+    font-size: 14px;
+    color: #2d3748;
+    font-weight: 500;
+    word-break: break-all;
+    margin-right: 12px;
+  }
+  .file-remove {
+    background: #fed7d7;
+    color: #c53030;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .filename-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-top: 16px;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .filename-input:focus { border-color: #667eea; }
+  .filename-label {
+    display: block;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #4a5568;
+    font-weight: 500;
+  }
+  .submit-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .submit-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+  }
+  .submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .progress {
+    display: none;
+    margin-top: 20px;
+    text-align: center;
+  }
+  .progress.show { display: block; }
+  .spinner {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-text {
+    margin-top: 10px;
+    color: #4a5568;
+    font-size: 14px;
+  }
+  .result {
+    display: none;
+    margin-top: 24px;
+    padding: 20px;
+    background: #f0fff4;
+    border: 1px solid #9ae6b4;
+    border-radius: 10px;
+  }
+  .result.show { display: block; }
+  .result-title {
+    color: #22543d;
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .download-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .download-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid #c6f6d5;
+  }
+  .download-item-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+  }
+  .format-badge {
+    background: #667eea;
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .format-badge.pdf { background: #e53e3e; }
+  .download-btn {
+    background: #48bb78;
+    color: #fff;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .download-btn:hover { background: #38a169; }
+  .error {
+    display: none;
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    border-radius: 8px;
+    color: #c53030;
+    font-size: 14px;
+  }
+  .error.show { display: block; }
+  .features {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid #e2e8f0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    text-align: center;
+  }
+  .feature {
+    padding: 12px;
+  }
+  .feature-icon { font-size: 24px; margin-bottom: 4px; }
+  .feature-text { font-size: 12px; color: #718096; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>DocumentConverter</h1>
+    <p class="subtitle">将 Markdown 文件转换为 Word 和 PDF 格式</p>
+
+    <form id="convertForm">
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">点击选择或拖拽 Markdown 文件到此处</div>
+        <div class="upload-hint">支持 .md / .markdown 格式，最大 20MB</div>
+        <input type="file" id="fileInput" accept=".md,.markdown,text/markdown" style="display:none">
+      </div>
+
+      <div class="file-info" id="fileInfo">
+        <span class="file-name" id="fileName"></span>
+        <button type="button" class="file-remove" id="fileRemove">移除</button>
+      </div>
+
+      <label class="filename-label">输出文件名（不含扩展名，可选）</label>
+      <input type="text" class="filename-input" id="filenameInput" placeholder="留空则使用原文件名">
+
+      <button type="submit" class="submit-btn" id="submitBtn">转换为 Word & PDF</button>
+    </form>
+
+    <div class="progress" id="progress">
+      <div class="spinner"></div>
+      <div class="progress-text" id="progressText">正在转换中，请稍候...</div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="result" id="result">
+      <div class="result-title">✅ 转换完成！</div>
+      <div class="download-list" id="downloadList"></div>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">📝</div>
+        <div class="feature-text">支持 GFM 语法</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <div class="feature-text">表格 / 代码块</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🚀</div>
+        <div class="feature-text">一键双格式</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const fileInfo = document.getElementById('fileInfo');
+const fileNameEl = document.getElementById('fileName');
+const fileRemove = document.getElementById('fileRemove');
+const filenameInput = document.getElementById('filenameInput');
+const convertForm = document.getElementById('convertForm');
+const submitBtn = document.getElementById('submitBtn');
+const progress = document.getElementById('progress');
+const progressText = document.getElementById('progressText');
+const errorBox = document.getElementById('error');
+const result = document.getElementById('result');
+const downloadList = document.getElementById('downloadList');
+
+let selectedFile = null;
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+    }
+});
+fileInput.addEventListener('change', e => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+});
+fileRemove.addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    fileInfo.classList.remove('show');
+    uploadArea.classList.remove('has-file');
+    uploadArea.style.display = '';
+    result.classList.remove('show');
+    errorBox.classList.remove('show');
+});
+
+function handleFile(file) {
+    const name = file.name.toLowerCase();
+    if (!name.endsWith('.md') && !name.endsWith('.markdown')) {
+        showError('仅支持 .md 或 .markdown 文件');
+        return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+        showError('文件大小不能超过 20MB');
+        return;
+    }
+    selectedFile = file;
+    fileNameEl.textContent = `${file.name} (${formatSize(file.size)})`;
+    fileInfo.classList.add('show');
+    uploadArea.classList.add('has-file');
+    if (!filenameInput.value) {
+        filenameInput.value = file.name.replace(/\.(md|markdown)$/i, '');
+    }
+    errorBox.classList.remove('show');
+    result.classList.remove('show');
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+function showError(msg) {
+    errorBox.textContent = '❌ ' + msg;
+    errorBox.classList.add('show');
+    result.classList.remove('show');
+}
+
+convertForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!selectedFile) {
+        showError('请先选择 Markdown 文件');
+        return;
+    }
+    errorBox.classList.remove('show');
+    result.classList.remove('show');
+    progress.classList.add('show');
+    submitBtn.disabled = true;
+    progressText.textContent = '正在上传并转换中...';
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    if (filenameInput.value.trim()) {
+        formData.append('filename', filenameInput.value.trim());
+    }
+
+    try {
+        const res = await fetch('/api/convert', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || '转换失败');
+        }
+        downloadList.innerHTML = '';
+        const formats = [
+            { name: 'Word 文档', url: data.docx, cls: 'word', label: 'DOCX' },
+            { name: 'PDF 文档', url: data.pdf, cls: 'pdf', label: 'PDF' }
+        ];
+        for (const fmt of formats) {
+            const item = document.createElement('div');
+            item.className = 'download-item';
+            item.innerHTML = `
+                <div class="download-item-info">
+                    <span class="format-badge ${fmt.cls}">${fmt.label}</span>
+                    <span>${fmt.name}</span>
+                </div>
+                <a class="download-btn" href="${fmt.url}" download>下载</a>
+            `;
+            downloadList.appendChild(item);
+        }
+        result.classList.add('show');
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        progress.classList.remove('show');
+        submitBtn.disabled = false;
+    }
+});
+
+// 健康检查
+fetch('/api/health').then(r => r.json()).then(d => console.log('服务正常', d)).catch(() => {});
+</script>
+</body>
+</html>
