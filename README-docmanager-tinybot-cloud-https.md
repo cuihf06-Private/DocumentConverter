@@ -40,17 +40,13 @@ Nginx
 - 已将该域名请求反向代理到 `http://127.0.0.1:3003`
 - 本机使用 `Host: docmanager.tinybot.cloud` 请求验证时，能够正常返回 `3003` 服务内容
 - Nginx 配置语法检查通过，服务已成功 reload
-
-当前未完成项：
-
-- **公网 DNS 尚未生效**
-- 因此 **Let's Encrypt 证书暂时无法签发**
-- 外部 HTTPS 访问尚不能最终完成
+- 已成功签发并部署 `docmanager.tinybot.cloud` 的 Let's Encrypt 证书
+- 已启用 HTTP 自动跳转到 HTTPS
 
 简而言之：
 
 - **Nginx 转发已就绪**
-- **公网域名解析是当前唯一阻塞项**
+- **HTTPS 已正式生效**
 
 ---
 
@@ -65,6 +61,8 @@ Nginx
 | Nginx 站点配置 | `/etc/nginx/sites-available/docmanager.tinybot.cloud` |
 | 启用链接 | `/etc/nginx/sites-enabled/docmanager.tinybot.cloud` |
 | TLS 工具 | `certbot 1.21.0` |
+| 证书路径 | `/etc/letsencrypt/live/docmanager.tinybot.cloud/fullchain.pem` |
+| 证书到期 | `2026-09-11` |
 
 ---
 
@@ -82,7 +80,7 @@ Nginx
 /etc/nginx/sites-enabled/docmanager.tinybot.cloud
 ```
 
-### 4.3 证书目录（DNS 生效并签发成功后）
+### 4.3 证书目录
 
 ```bash
 /etc/letsencrypt/live/docmanager.tinybot.cloud/
@@ -96,8 +94,6 @@ Nginx
 
 ```nginx
 server {
-    listen 80;
-    listen [::]:80;
     server_name docmanager.tinybot.cloud;
 
     location / {
@@ -110,6 +106,24 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
     }
+
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/docmanager.tinybot.cloud/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/docmanager.tinybot.cloud/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+    if ($host = docmanager.tinybot.cloud) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+    listen 80;
+    listen [::]:80;
+    server_name docmanager.tinybot.cloud;
+    return 404; # managed by Certbot
 }
 ```
 
@@ -233,7 +247,7 @@ DNS problem: NXDOMAIN looking up A for docmanager.tinybot.cloud
 
 ## 10. HTTPS 接入步骤
 
-在 DNS 生效之后，执行以下命令即可为该域名申请证书并自动写入 HTTPS 配置：
+本次实际执行以下命令，为该域名申请证书并自动写入 HTTPS 配置：
 
 ```bash
 sudo certbot --nginx -d docmanager.tinybot.cloud --non-interactive --redirect
@@ -249,9 +263,19 @@ sudo certbot --nginx -d docmanager.tinybot.cloud --non-interactive --redirect
 
 ---
 
-## 11. 证书签发成功后的预期配置
+## 11. 证书签发后的实际结果
 
-当证书签发成功后，Nginx 一般会变成类似下面的结构：
+证书已成功签发，当前返回的证书信息为：
+
+```text
+subject=CN = docmanager.tinybot.cloud
+issuer=C = US, O = Let's Encrypt, CN = YR1
+notBefore=Jun 13 12:02:45 2026 GMT
+notAfter=Sep 11 12:02:44 2026 GMT
+DNS:docmanager.tinybot.cloud
+```
+
+当前 Nginx HTTPS 配置结构如下：
 
 ```nginx
 server {
@@ -316,7 +340,7 @@ sudo nginx -t
 sudo sed -n '1,220p' /etc/nginx/sites-available/docmanager.tinybot.cloud
 ```
 
-### 12.5 DNS 生效后检查公网访问
+### 12.5 检查公网访问
 
 ```bash
 curl -I http://docmanager.tinybot.cloud
@@ -448,14 +472,14 @@ proxy_set_header Connection "upgrade";
 
 ## 17. 当前结论
 
-当前环境中，这项配置已经完成了大部分工作：
+当前环境中，这项配置已经完成：
 
 - **代理配置已完成**
 - **本机转发已验证成功**
 - **Nginx 正在运行**
+- **HTTPS 证书已成功部署**
+- **HTTP 已自动跳转到 HTTPS**
 
-剩余待办只有一项：
+当前正式对外入口：
 
-- **补齐并生效 `docmanager.tinybot.cloud` 的公网 DNS 解析，然后申请 HTTPS 证书**
-
-完成 DNS 后，该域名即可正式作为 `3003` 服务的外部访问入口。
+- **https://docmanager.tinybot.cloud**
