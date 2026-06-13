@@ -1,6 +1,8 @@
 node_modules/
-uploads/
-outputs/
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
 *.log
 .DS_Store
 __pycache__/
